@@ -4,13 +4,13 @@ import { sequelizeTypescript } from '../../../initializers'
 import { AccountVideoRateModel } from '../../../models/account/account-video-rate'
 import { ActorModel } from '../../../models/activitypub/actor'
 import { getOrCreateActorAndServerAndModel } from '../actor'
-import { forwardActivity } from '../send/utils'
+import { forwardVideoRelatedActivity } from '../send/utils'
 import { getOrCreateAccountAndVideoAndChannel } from '../videos'
 
 async function processLikeActivity (activity: ActivityLike) {
   const actor = await getOrCreateActorAndServerAndModel(activity.actor)
 
-  return processLikeVideo(actor, activity)
+  return retryTransactionWrapper(processLikeVideo, actor, activity)
 }
 
 // ---------------------------------------------------------------------------
@@ -21,16 +21,7 @@ export {
 
 // ---------------------------------------------------------------------------
 
-async function processLikeVideo (actor: ActorModel, activity: ActivityLike) {
-  const options = {
-    arguments: [ actor, activity ],
-    errorMessage: 'Cannot like the video with many retries.'
-  }
-
-  return retryTransactionWrapper(createVideoLike, options)
-}
-
-async function createVideoLike (byActor: ActorModel, activity: ActivityLike) {
+async function processLikeVideo (byActor: ActorModel, activity: ActivityLike) {
   const videoUrl = activity.object
 
   const byAccount = byActor.Account
@@ -54,7 +45,8 @@ async function createVideoLike (byActor: ActorModel, activity: ActivityLike) {
     if (video.isOwned() && created === true) {
       // Don't resend the activity to the sender
       const exceptions = [ byActor ]
-      await forwardActivity(activity, t, exceptions)
+
+      await forwardVideoRelatedActivity(activity, t, exceptions, video)
     }
   })
 }

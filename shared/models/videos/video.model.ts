@@ -1,8 +1,9 @@
-import { VideoResolution } from '../../index'
+import { VideoResolution, VideoState } from '../../index'
 import { Account } from '../actors'
 import { Avatar } from '../avatars/avatar.model'
 import { VideoChannel } from './video-channel.model'
 import { VideoPrivacy } from './video-privacy.enum'
+import { VideoScheduleUpdate } from './video-schedule-update.model'
 
 export interface VideoConstant <T> {
   id: T
@@ -14,7 +15,9 @@ export interface VideoFile {
   resolution: VideoConstant<VideoResolution>
   size: number // Bytes
   torrentUrl: string
+  torrentDownloadUrl: string
   fileUrl: string
+  fileDownloadUrl: string
 }
 
 export interface Video {
@@ -38,6 +41,10 @@ export interface Video {
   likes: number
   dislikes: number
   nsfw: boolean
+
+  waitTranscoding?: boolean
+  state?: VideoConstant<VideoState>
+  scheduledUpdate?: VideoScheduleUpdate
 
   account: {
     id: number
@@ -68,4 +75,8 @@ export interface VideoDetails extends Video {
   files: VideoFile[]
   account: Account
   commentsEnabled: boolean
+
+  // Not optional in details (unlike in Video)
+  waitTranscoding: boolean
+  state: VideoConstant<VideoState>
 }

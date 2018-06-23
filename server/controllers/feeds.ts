@@ -1,20 +1,27 @@
 import * as express from 'express'
 import { CONFIG, FEEDS, ROUTE_CACHE_LIFETIME } from '../initializers/constants'
-import { asyncMiddleware, feedsValidator, setDefaultSort, videosSortValidator } from '../middlewares'
+import { asyncMiddleware, setDefaultSort, videoCommentsFeedsValidator, videoFeedsValidator, videosSortValidator } from '../middlewares'
 import { VideoModel } from '../models/video/video'
 import * as Feed from 'pfeed'
 import { AccountModel } from '../models/account/account'
 import { cacheRoute } from '../middlewares/cache'
 import { VideoChannelModel } from '../models/video/video-channel'
+import { VideoCommentModel } from '../models/video/video-comment'
 
 const feedsRouter = express.Router()
+
+feedsRouter.get('/feeds/video-comments.:format',
+  asyncMiddleware(cacheRoute(ROUTE_CACHE_LIFETIME.FEEDS)),
+  asyncMiddleware(videoCommentsFeedsValidator),
+  asyncMiddleware(generateVideoCommentsFeed)
+)
 
 feedsRouter.get('/feeds/videos.:format',
   videosSortValidator,
   setDefaultSort,
   asyncMiddleware(cacheRoute(ROUTE_CACHE_LIFETIME.FEEDS)),
-  asyncMiddleware(feedsValidator),
-  asyncMiddleware(generateFeed)
+  asyncMiddleware(videoFeedsValidator),
+  asyncMiddleware(generateVideoFeed)
 )
 
 // ---------------------------------------------------------------------------
@@ -25,13 +32,63 @@ export {
 
 // ---------------------------------------------------------------------------
 
-async function generateFeed (req: express.Request, res: express.Response, next: express.NextFunction) {
-  let feed = initFeed()
+async function generateVideoCommentsFeed (req: express.Request, res: express.Response, next: express.NextFunction) {
+  const start = 0
+
+  const video = res.locals.video as VideoModel
+  const videoId: number = video ? video.id : undefined
+
+  const comments = await VideoCommentModel.listForFeed(start, FEEDS.COUNT, videoId)
+
+  const name = video ? video.name : CONFIG.INSTANCE.NAME
+  const description = video ? video.description : CONFIG.INSTANCE.DESCRIPTION
+  const feed = initFeed(name, description)
+
+  // Adding video items to the feed, one at a time
+  comments.forEach(comment => {
+    const link = CONFIG.WEBSERVER.URL + '/videos/watch/' + comment.Video.uuid + ';threadId=' + comment.getThreadId()
+
+    feed.addItem({
+      title: `${comment.Video.name} - ${comment.Account.getDisplayName()}`,
+      id: comment.url,
+      link,
+      content: comment.text,
+      author: [
+        {
+          name: comment.Account.getDisplayName(),
+          link: comment.Account.Actor.url
+        }
+      ],
+      date: comment.createdAt
+    })
+  })
+
+  // Now the feed generation is done, let's send it!
+  return sendFeed(feed, req, res)
+}
+
+async function generateVideoFeed (req: express.Request, res: express.Response, next: express.NextFunction) {
   const start = 0
 
   const account: AccountModel = res.locals.account
   const videoChannel: VideoChannelModel = res.locals.videoChannel
   const hideNSFW = CONFIG.INSTANCE.DEFAULT_NSFW_POLICY === 'do_not_list'
+
+  let name: string
+  let description: string
+
+  if (videoChannel) {
+    name = videoChannel.getDisplayName()
+    description = videoChannel.description
+  } else if (account) {
+    name = account.getDisplayName()
+    description = account.description
+  } else {
+    name = CONFIG.INSTANCE.NAME
+    description = CONFIG.INSTANCE.DESCRIPTION
+  }
+
+  const feed = initFeed(name, description)
 
   const resultList = await VideoModel.listForApi({
     start,
@@ -56,7 +113,7 @@ async function generateFeed (req: express.Request, res: express.Response, next: 
     feed.addItem({
       title: video.name,
       id: video.url,
-      link: video.url,
+      link: CONFIG.WEBSERVER.URL + '/videos/watch/' + video.uuid,
       description: video.getTruncatedDescription(),
       content: video.description,
       author: [
@@ -76,12 +133,12 @@ async function generateFeed (req: express.Request, res: express.Response, next: 
   return sendFeed(feed, req, res)
 }
 
-function initFeed () {
+function initFeed (name: string, description: string) {
   const webserverUrl = CONFIG.WEBSERVER.URL
 
   return new Feed({
-    title: CONFIG.INSTANCE.NAME,
-    description: CONFIG.INSTANCE.DESCRIPTION,
+    title: name,
+    description,
     // updated: TODO: somehowGetLatestUpdate, // optional, default = today
     id: webserverUrl,
     link: webserverUrl,

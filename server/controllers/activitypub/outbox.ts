@@ -47,22 +47,19 @@ async function buildActivities (actor: ActorModel, start: number, count: number)
   const actors = data.data.map(v => v.VideoChannel.Account.Actor)
   actors.push(actor)
 
-  const followersMatrix = await ActorModel.getActorsFollowerSharedInboxUrls(actors, undefined)
-
   for (const video of data.data) {
     const byActor = video.VideoChannel.Account.Actor
-    const createActivityAudience = buildAudience(followersMatrix[byActor.id], video.privacy === VideoPrivacy.PUBLIC)
+    const createActivityAudience = buildAudience([ byActor.followersUrl ], video.privacy === VideoPrivacy.PUBLIC)
 
     // This is a shared video
     if (video.VideoShares !== undefined && video.VideoShares.length !== 0) {
       const videoShare = video.VideoShares[0]
-      const announceAudience = buildAudience(followersMatrix[actor.id], video.privacy === VideoPrivacy.PUBLIC)
-      const announceActivity = await announceActivityData(videoShare.url, actor, video.url, undefined, announceAudience)
+      const announceActivity = announceActivityData(videoShare.url, actor, video.url, createActivityAudience)
 
       activities.push(announceActivity)
     } else {
       const videoObject = video.toActivityPubObject()
-      const createActivity = await createActivityData(video.url, byActor, videoObject, undefined, createActivityAudience)
+      const createActivity = createActivityData(video.url, byActor, videoObject, createActivityAudience)
 
       activities.push(createActivity)
     }

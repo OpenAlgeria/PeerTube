@@ -36,7 +36,7 @@ $ sudo apt install ffmpeg
   1. Run:
 
 ```
-$ sudo pacman -S nodejs-lts-carbon yarn ffmpeg postgresql openssl redis git wget unzip python2 base-devel npm nginx
+$ sudo pacman -S nodejs yarn ffmpeg postgresql openssl redis git wget unzip python2 base-devel npm nginx
 ```
 
 ## CentOS 7
@@ -54,12 +54,12 @@ $ sudo pacman -S nodejs-lts-carbon yarn ffmpeg postgresql openssl redis git wget
 $ sudo yum update
 $ sudo yum install epel-release centos-release-scl
 $ sudo yum update
-$ sudo yum install nginx postgresql postgresql-server openssl gcc-c++ make redis git devtoolset-6
+$ sudo yum install nginx postgresql postgresql-server openssl gcc-c++ make redis git devtoolset-7
 ```
 
   5. You need to use a more up to date version of G++ in order to run the yarn install command, hence the installation of devtoolset-6.
 ```
-$ sudo scl devtoolset-6 bash
+$ sudo scl enable devtoolset-7 bash
 ```
 
 ## FreeBSD
@@ -84,15 +84,11 @@ On a fresh install of [FreeBSD](https://www.freebsd.org), new system or new jail
 ```
 
   3. Enable nginx, redis, postgresql services and initialize database
-```
-# ee /etc/rc.conf
-```
 
-     Add the following lines
 ```
-postgresql_enable="YES"
-redis_enable="YES"
-nginx_enable="YES"
+# sysrc postgresql_enable="YES"
+# sysrc redis_enable="YES"
+# sysrc nginx_enable="YES"
 ```
 
 	 Initialize database and start services

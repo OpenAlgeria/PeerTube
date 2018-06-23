@@ -12,7 +12,6 @@ import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as http from 'http'
 import * as morgan from 'morgan'
-import * as path from 'path'
 import * as bitTorrentTracker from 'bittorrent-tracker'
 import * as cors from 'cors'
 import { Server as WebSocketServer } from 'ws'
@@ -25,11 +24,11 @@ process.title = 'peertube'
 const app = express()
 
 // ----------- Core checker -----------
-import { checkMissedConfig, checkFFmpeg, checkConfig } from './server/initializers/checker'
+import { checkMissedConfig, checkFFmpeg, checkConfig, checkActivityPubUrls } from './server/initializers/checker'
 
 // Do not use barrels because we don't want to load all modules here (we need to initialize database first)
 import { logger } from './server/helpers/logger'
-import { ACCEPT_HEADERS, API_VERSION, CONFIG, STATIC_PATHS } from './server/initializers/constants'
+import { API_VERSION, CONFIG, STATIC_PATHS } from './server/initializers/constants'
 
 const missed = checkMissedConfig()
 if (missed.length !== 0) {
@@ -81,6 +80,7 @@ import {
 import { Redis } from './server/lib/redis'
 import { BadActorFollowScheduler } from './server/lib/schedulers/bad-actor-follow-scheduler'
 import { RemoveOldJobsScheduler } from './server/lib/schedulers/remove-old-jobs-scheduler'
+import { UpdateVideosScheduler } from './server/lib/schedulers/update-videos-scheduler'
 
 // ----------- Command line -----------
 
@@ -156,20 +156,11 @@ app.use('/', activityPubRouter)
 app.use('/', feedsRouter)
 app.use('/', webfingerRouter)
 
-// Client files
-app.use('/', clientsRouter)
-
 // Static files
 app.use('/', staticRouter)
 
-// Always serve index client page (the client is a single page application, let it handle routing)
-app.use('/*', function (req, res) {
-  if (req.accepts(ACCEPT_HEADERS) === 'html') {
-    return res.sendFile(path.join(__dirname, '../client/dist/index.html'))
-  }
-
-  return res.status(404).end()
-})
+// Client files, last valid routes!
+app.use('/', clientsRouter)
 
 // ----------- Errors -----------
 
@@ -198,6 +189,13 @@ async function startApplication () {
 
   await installApplication()
 
+  // Check activity pub urls are valid
+  checkActivityPubUrls()
+    .catch(err => {
+      logger.error('Error in ActivityPub URLs checker.', { err })
+      process.exit(-1)
+    })
+
   // Email initialization
   Emailer.Instance.init()
   await Emailer.Instance.checkConnectionOrDie()
@@ -210,6 +208,7 @@ async function startApplication () {
   // Enable Schedulers
   BadActorFollowScheduler.Instance.enable()
   RemoveOldJobsScheduler.Instance.enable()
+  UpdateVideosScheduler.Instance.enable()
 
   // Redis initialization
   Redis.Instance.init()

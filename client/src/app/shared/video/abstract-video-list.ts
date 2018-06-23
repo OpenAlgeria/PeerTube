@@ -2,7 +2,6 @@ import { debounceTime } from 'rxjs/operators'
 import { ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
 import { Location } from '@angular/common'
-import { isInMobileView } from '@app/shared/misc/utils'
 import { InfiniteScrollerDirective } from '@app/shared/video/infinite-scroller.directive'
 import { NotificationsService } from 'angular2-notifications'
 import { fromEvent, Observable, Subscription } from 'rxjs'
@@ -10,6 +9,8 @@ import { AuthService } from '../../core/auth'
 import { ComponentPagination } from '../rest/component-pagination.model'
 import { VideoSortField } from './sort-field.type'
 import { Video } from './video.model'
+import { I18n } from '@ngx-translate/i18n-polyfill'
+import { ScreenService } from '@app/shared/misc/screen.service'
 
 export abstract class AbstractVideoList implements OnInit, OnDestroy {
   private static LINES_PER_PAGE = 4
@@ -40,6 +41,8 @@ export abstract class AbstractVideoList implements OnInit, OnDestroy {
   protected abstract authService: AuthService
   protected abstract router: Router
   protected abstract route: ActivatedRoute
+  protected abstract screenService: ScreenService
+  protected abstract i18n: I18n
   protected abstract location: Location
   protected abstract currentRoute: string
   abstract titlePage: string
@@ -124,7 +127,7 @@ export abstract class AbstractVideoList implements OnInit, OnDestroy {
       },
       error => {
         this.loadingPage[page] = false
-        this.notificationsService.error('Error', error.message)
+        this.notificationsService.error(this.i18n('Error'), error.message)
       }
     )
   }
@@ -197,7 +200,7 @@ export abstract class AbstractVideoList implements OnInit, OnDestroy {
   }
 
   private calcPageSizes () {
-    if (isInMobileView() || this.baseVideoWidth === -1) {
+    if (this.screenService.isInMobileView() || this.baseVideoWidth === -1) {
       this.pagination.itemsPerPage = 5
 
       // Video takes all the width

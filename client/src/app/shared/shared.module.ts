@@ -33,6 +33,16 @@ import { VideoThumbnailComponent } from './video/video-thumbnail.component'
 import { VideoService } from './video/video.service'
 import { AccountService } from '@app/shared/account/account.service'
 import { VideoChannelService } from '@app/shared/video-channel/video-channel.service'
+import { I18n } from '@ngx-translate/i18n-polyfill'
+import { FormValidatorService } from '@app/shared/forms/form-validators/form-validator.service'
+import {
+  CustomConfigValidatorsService,
+  LoginValidatorsService,
+  ResetPasswordValidatorsService,
+  UserValidatorsService, VideoAbuseValidatorsService, VideoChannelValidatorsService, VideoCommentValidatorsService, VideoValidatorsService
+} from '@app/shared/forms'
+import { I18nPrimengCalendarService } from '@app/shared/i18n/i18n-primeng-calendar'
+import { ScreenService } from '@app/shared/misc/screen.service'
 
 @NgModule({
   imports: [
@@ -108,7 +118,22 @@ import { VideoChannelService } from '@app/shared/video-channel/video-channel.ser
     VideoService,
     AccountService,
     MarkdownService,
-    VideoChannelService
+    VideoChannelService,
+
+    FormValidatorService,
+    CustomConfigValidatorsService,
+    LoginValidatorsService,
+    ResetPasswordValidatorsService,
+    UserValidatorsService,
+    VideoAbuseValidatorsService,
+    VideoChannelValidatorsService,
+    VideoCommentValidatorsService,
+    VideoValidatorsService,
+
+    I18nPrimengCalendarService,
+    ScreenService,
+
+    I18n
   ]
 })
 export class SharedModule { }

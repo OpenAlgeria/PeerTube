@@ -1,19 +1,20 @@
 import { IConfig } from 'config'
 import { dirname, join } from 'path'
-import { JobType, VideoRateType } from '../../shared/models'
+import { JobType, VideoRateType, VideoState } from '../../shared/models'
 import { ActivityPubActorType } from '../../shared/models/activitypub'
 import { FollowState } from '../../shared/models/actors'
 import { VideoPrivacy } from '../../shared/models/videos'
 // Do not use barrels, remain constants as independent as possible
 import { buildPath, isTestInstance, root, sanitizeHost, sanitizeUrl } from '../helpers/core-utils'
 import { NSFWPolicyType } from '../../shared/models/videos/nsfw-policy.type'
+import { invert } from 'lodash'
 
 // Use a variable to reload the configuration if we need
 let config: IConfig = require('config')
 
 // ---------------------------------------------------------------------------
 
-const LAST_MIGRATION_VERSION = 215
+const LAST_MIGRATION_VERSION = 220
 
 // ---------------------------------------------------------------------------
 
@@ -38,7 +39,7 @@ const SORTABLE_COLUMNS = {
 }
 
 const OAUTH_LIFETIME = {
-  ACCESS_TOKEN: 3600 * 4, // 4 hours
+  ACCESS_TOKEN: 3600 * 24, // 1 day, for upload
   REFRESH_TOKEN: 1209600 // 2 weeks
 }
 
@@ -74,6 +75,7 @@ const JOB_ATTEMPTS: { [ id in JobType ]: number } = {
   'activitypub-http-unicast': 5,
   'activitypub-http-fetcher': 5,
   'activitypub-follow': 5,
+  'video-file-import': 1,
   'video-file': 1,
   'email': 5
 }
@@ -82,6 +84,7 @@ const JOB_CONCURRENCY: { [ id in JobType ]: number } = {
   'activitypub-http-unicast': 5,
   'activitypub-http-fetcher': 1,
   'activitypub-follow': 3,
+  'video-file-import': 1,
   'video-file': 1,
   'email': 5
 }
@@ -91,7 +94,11 @@ const JOB_REQUEST_TTL = 60000 * 10 // 10 minutes
 const JOB_COMPLETED_LIFETIME = 60000 * 60 * 24 * 2 // 2 days
 
 // 1 hour
-let SCHEDULER_INTERVAL = 60000 * 60
+let SCHEDULER_INTERVALS_MS = {
+  badActorFollow: 60000 * 60, // 1 hour
+  removeOldJobs: 60000 * 60, // 1 hour
+  updateVideos: 60000 // 1 minute
+}
 
 // ---------------------------------------------------------------------------
 
@@ -323,11 +330,17 @@ const VIDEO_PRIVACIES = {
   [VideoPrivacy.PRIVATE]: 'Private'
 }
 
+const VIDEO_STATES = {
+  [VideoState.PUBLISHED]: 'Published',
+  [VideoState.TO_TRANSCODE]: 'To transcode'
+}
+
 const VIDEO_MIMETYPE_EXT = {
   'video/webm': '.webm',
   'video/ogg': '.ogv',
   'video/mp4': '.mp4'
 }
+const VIDEO_EXT_MIMETYPE = invert(VIDEO_MIMETYPE_EXT)
 
 const IMAGE_MIMETYPE_EXT = {
   'image/png': '.png',
@@ -389,6 +402,10 @@ const STATIC_PATHS = {
   WEBSEED: '/static/webseed/',
   AVATARS: '/static/avatars/'
 }
+const STATIC_DOWNLOAD_PATHS = {
+  TORRENTS: '/download/torrents/',
+  VIDEOS: '/download/videos/'
+}
 
 // Cache control
 let STATIC_MAX_AGE = '30d'
@@ -436,14 +453,24 @@ const FEEDS = {
 // Special constants for a test instance
 if (isTestInstance() === true) {
   ACTOR_FOLLOW_SCORE.BASE = 20
+
   REMOTE_SCHEME.HTTP = 'http'
   REMOTE_SCHEME.WS = 'ws'
+
   STATIC_MAX_AGE = '0'
+
   ACTIVITY_PUB.COLLECTION_ITEMS_PER_PAGE = 2
   ACTIVITY_PUB.ACTOR_REFRESH_INTERVAL = 10 * 1000 // 10 seconds
+
   CONSTRAINTS_FIELDS.ACTORS.AVATAR.FILE_SIZE.max = 100 * 1024 // 100KB
-  SCHEDULER_INTERVAL = 10000
+
+  SCHEDULER_INTERVALS_MS.badActorFollow = 10000
+  SCHEDULER_INTERVALS_MS.removeOldJobs = 10000
+  SCHEDULER_INTERVALS_MS.updateVideos = 5000
+
   VIDEO_VIEW_LIFETIME = 1000 // 1 second
+
+  JOB_ATTEMPTS['email'] = 1
 }
 
 updateWebserverConfig()
@@ -485,6 +512,7 @@ export {
   VIDEO_LANGUAGES,
   VIDEO_PRIVACIES,
   VIDEO_LICENCES,
+  VIDEO_STATES,
   VIDEO_RATE_TYPES,
   VIDEO_MIMETYPE_EXT,
   VIDEO_TRANSCODING_FPS,
@@ -492,10 +520,13 @@ export {
   JOB_REQUEST_TTL,
   USER_PASSWORD_RESET_LIFETIME,
   IMAGE_MIMETYPE_EXT,
-  SCHEDULER_INTERVAL,
+  SCHEDULER_INTERVALS_MS,
+  STATIC_DOWNLOAD_PATHS,
   RATES_LIMIT,
+  VIDEO_EXT_MIMETYPE,
   JOB_COMPLETED_LIFETIME,
-  VIDEO_VIEW_LIFETIME
+  VIDEO_VIEW_LIFETIME,
+  buildLanguages
 }
 
 // ---------------------------------------------------------------------------
